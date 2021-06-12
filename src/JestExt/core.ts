@@ -31,6 +31,7 @@ import { SupportedLanguageIds } from '../appGlobals';
 import { createJestExtContext, getExtensionResourceSettings, prefixWorkspace } from './helper';
 import { PluginResourceSettings } from '../Settings';
 import { startWizard, WizardTaskId } from '../setup-wizard';
+import { WorkspaceRoot } from '../test-provider/test-item-dats';
 
 interface RunTestPickItem extends vscode.QuickPickItem {
   id: DebugTestIdentifier;
@@ -66,6 +67,7 @@ export class JestExt {
   private sessionAwareComponents: JestExtSessionAware[];
   private extContext: JestExtContext;
   private dirtyFiles: Set<string> = new Set();
+  workspaceItemRoot: WorkspaceRoot;
 
   constructor(
     vscodeContext: vscode.ExtensionContext,
@@ -110,6 +112,10 @@ export class JestExt {
     this.processSession = this.createProcessSession();
     this.sessionAwareComponents = [this.testResultProvider];
 
+
+    // vscode test provider support
+    this.workspaceItemRoot = new WorkspaceRoot({...this.extContext, session: this.processSession, testResolveProvider: this.testResultProvider}, workspaceFolder);
+
     this.setupStatusBar();
   }
 
@@ -139,6 +145,7 @@ export class JestExt {
   }
   private setTestFiles(list: string[] | undefined): void {
     this.testResultProvider.updateTestFileList(list);
+    this.workspaceItemRoot.updateTestList(...list);
     this.updateStatusBar({ stats: this.toSBStats(this.testResultProvider.getTestSuiteStats()) });
   }
   /**
@@ -203,13 +210,13 @@ export class JestExt {
     }
 
     const filePath = editor.document.fileName;
-    let testResults: SortedTestResults | undefined;
+    let sortedResults: SortedTestResults | undefined;
     try {
-      testResults = this.testResultProvider.getSortedResults(filePath);
+      sortedResults = this.testResultProvider.getSortedResults(filePath);
     } catch (e) {
       this.channel.appendLine(`${filePath}: failed to parse test results: ${e.toString()}`);
       // assign an empty result so we can clear the outdated decorators/diagnostics etc
-      testResults = {
+      sortedResults = {
         fail: [],
         skip: [],
         success: [],
@@ -217,12 +224,12 @@ export class JestExt {
       };
     }
 
-    if (!testResults) {
+    if (!sortedResults) {
       return;
     }
 
-    this.updateDecorators(testResults, editor);
-    updateCurrentDiagnostics(testResults.fail, this.failDiagnostics, editor);
+    this.updateDecorators(sortedResults, editor);
+    updateCurrentDiagnostics(sortedResults.fail, this.failDiagnostics, editor);
   }
 
   public triggerUpdateActiveEditor(editor: vscode.TextEditor): void {
@@ -397,7 +404,7 @@ export class JestExt {
       this.dirtyFiles.delete(name);
       this.processSession.scheduleProcess({
         type: 'by-file',
-        testFileNamePattern: name,
+        testFileName: name,
       });
     }
   }
@@ -445,7 +452,7 @@ export class JestExt {
     ) {
       this.processSession.scheduleProcess({
         type: 'by-file',
-        testFileNamePattern: document.fileName,
+        testFileName: document.fileName,
       });
     } else {
       this.dirtyFiles.add(document.fileName);
@@ -609,6 +616,8 @@ export class JestExt {
     this._updateCoverageMap(normalizedData.coverageMap);
 
     const statusList = this.testResultProvider.updateTestResults(normalizedData);
+    this.workspaceItemRoot.updateWithTestResults(statusList);
+
     updateDiagnostics(statusList, this.failDiagnostics);
 
     this.refreshDocumentChange();

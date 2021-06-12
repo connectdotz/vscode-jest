@@ -22,7 +22,7 @@ export type InternalRequestBase =
       baseRequest: JestProcessRequest;
     };
 
-type JestExtRequestType = JestProcessRequestBase | InternalRequestBase;
+export type JestExtRequestType = JestProcessRequestBase | InternalRequestBase;
 
 const ProcessScheduleStrategy: Record<JestTestProcessType, ScheduleStrategy> = {
   // abort if there is already an pending request
@@ -39,6 +39,14 @@ const ProcessScheduleStrategy: Record<JestTestProcessType, ScheduleStrategy> = {
     dedup: { filterByStatus: ['pending'] },
   },
   'by-file-test': {
+    queue: 'blocking',
+    dedup: { filterByStatus: ['pending'], filterByContent: true },
+  },
+  'by-file-pattern': {
+    queue: 'blocking',
+    dedup: { filterByStatus: ['pending'] },
+  },
+  'by-file-test-pattern': {
     queue: 'blocking',
     dedup: { filterByStatus: ['pending'], filterByContent: true },
   },

@@ -11,6 +11,7 @@ import * as match from './match-by-context';
 import { JestExtSessionAware } from '../JestExt';
 import { TestStats } from '../types';
 import { emptyTestStats } from '../helpers';
+import { createTestResultEvents, TestResultEvents } from './TestResultEvent';
 
 interface TestSuiteResult {
   status: TestReconciliationStateType;
@@ -36,6 +37,7 @@ const sortByStatus = (a: TestResult, b: TestResult): number => {
 };
 export class TestResultProvider implements JestExtSessionAware {
   verbose: boolean;
+  events: TestResultEvents;
   private reconciler: TestReconciler;
   private testSuites: TestSuiteResultMap = {};
   private testFiles?: string[];
@@ -44,6 +46,7 @@ export class TestResultProvider implements JestExtSessionAware {
     this.reconciler = new TestReconciler();
     this.resetCache();
     this.verbose = verbose;
+    this.events = createTestResultEvents();
   }
 
   public onSessionStart(): void {
@@ -90,6 +93,8 @@ export class TestResultProvider implements JestExtSessionAware {
 
     // clear the cache in case we have cached some non-test files prior
     this.testSuites = {};
+
+    this.events.testListUpdated.fire(testFiles);
   }
 
   isTestFile(fileName: string): 'yes' | 'no' | 'unknown' {
@@ -103,24 +108,30 @@ export class TestResultProvider implements JestExtSessionAware {
   }
 
   private matchResults(filePath: string, { root, itBlocks }: IParseResults): TestSuiteResult {
+    let error: string | undefined;
     try {
       const assertions = this.reconciler.assertionsForTestFile(filePath);
       if (assertions && assertions.length > 0) {
         const status = this.reconciler.stateForTestFile(filePath);
-        return {
+        const suiteResult = {
           status,
           results: this.groupByRange(
             match.matchTestAssertions(filePath, root, assertions, this.verbose)
           ),
         };
+        this.events.testResultMatched.fire({ fileName: filePath, results: suiteResult.results });
+        return suiteResult;
       }
+      error = 'no assertion generated for file';
     } catch (e) {
       console.warn(`failed to match test results for ${filePath}:`, e);
+      error = `encountered internal match error: ${e}`;
     }
+
     // no need to do groupByRange as the source block will not have blocks under the same location
     return {
       status: 'Unknown',
-      results: itBlocks.map((t) => match.toMatchResult(t, 'no assertion found', 'match-failed')),
+      results: itBlocks.map((t) => match.toMatchResult(t, error ?? 'match failed', 'match-failed')),
     };
   }
 
@@ -210,6 +221,7 @@ export class TestResultProvider implements JestExtSessionAware {
     results?.forEach((r) => {
       this.testSuites[r.file] = { status: r.status };
     });
+    this.events.testAssertionUpdated.fire(results);
     return results;
   }
 

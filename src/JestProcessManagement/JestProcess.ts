@@ -6,7 +6,7 @@ import { extensionId } from '../appGlobals';
 import { Logging } from '../logging';
 import { JestProcessRequest } from './types';
 import { requestString } from './helper';
-import { toFilePath, removeSurroundingQuote } from '../helpers';
+import { toFilePath, removeSurroundingQuote, escapeRegExp } from '../helpers';
 
 export const RunnerEvents: RunnerEvent[] = [
   'processClose',
@@ -110,8 +110,17 @@ export class JestProcess {
         }
         break;
       case 'by-file': {
-        options.testFileNamePattern = this.quoteFileName(this.request.testFileNamePattern);
+        options.testFileNamePattern = this.quoteFileName(this.request.testFileName);
         const args: string[] = ['--findRelatedTests', '--watchAll=false'];
+        if (this.request.updateSnapshot) {
+          args.push('--updateSnapshot');
+        }
+        options.args = { args };
+        break;
+      }
+      case 'by-file-pattern': {
+        const regex = escapeRegExp(this.request.testFileNamePattern);
+        const args: string[] = ['--findRelatedTests', '--watchAll=false', '--testPathPattern', regex];
         if (this.request.updateSnapshot) {
           args.push('--updateSnapshot');
         }
@@ -120,9 +129,19 @@ export class JestProcess {
       }
 
       case 'by-file-test': {
-        options.testFileNamePattern = this.quoteFileName(this.request.testFileNamePattern);
+        options.testFileNamePattern = this.quoteFileName(this.request.testFileName);
         options.testNamePattern = this.request.testNamePattern;
         const args: string[] = ['--runTestsByPath', '--watchAll=false'];
+        if (this.request.updateSnapshot) {
+          args.push('--updateSnapshot');
+        }
+        options.args = { args };
+        break;
+      }
+      case 'by-file-test-pattern': {
+        const regex = escapeRegExp(this.request.testFileNamePattern);
+        options.testNamePattern = this.request.testNamePattern;
+        const args: string[] = ['--runTestsByPath', '--watchAll=false', '--testPathPattern', regex];
         if (this.request.updateSnapshot) {
           args.push('--updateSnapshot');
         }

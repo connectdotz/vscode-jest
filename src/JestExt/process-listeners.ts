@@ -169,7 +169,7 @@ export class RunTestListener extends AbstractProcessListener {
     ) {
       const scope =
         process.request.type === 'by-file'
-          ? `for file "${process.request.testFileNamePattern}"`
+          ? `for file "${process.request.testFileName}"`
           : `for all files in "${this.session.context.workspace.name}"`;
       vscode.window
         .showInformationMessage(`Would you like to update snapshots ${scope}?`, {
