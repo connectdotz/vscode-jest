@@ -3,12 +3,14 @@ import { JestExt } from '../JestExt';
 import { TestItemDataType, WorkspaceRoot, DocumentRoot } from './test-item-dats';
 
 export class JestTestController implements vscode.TestController<TestItemDataType> {
-  constructor(private readonly getExt: (name: string) => JestExt) {}
+  constructor(private readonly getExt: (name: string) => JestExt | undefined) {}
 
   /**
    * @inheritdoc
    */
-  public createWorkspaceTestRoot(workspaceFolder: vscode.WorkspaceFolder): WorkspaceRoot['item'] {
+  public createWorkspaceTestRoot(
+    workspaceFolder: vscode.WorkspaceFolder
+  ): WorkspaceRoot['item'] | undefined {
     const jestExt = this.getExt(workspaceFolder.name);
     return jestExt?.workspaceItemRoot.item;
   }
@@ -16,7 +18,7 @@ export class JestTestController implements vscode.TestController<TestItemDataTyp
   /**
    * @inheritdoc
    */
-  public createDocumentTestRoot(document: vscode.TextDocument): DocumentRoot['item'] {
+  public createDocumentTestRoot(document: vscode.TextDocument): DocumentRoot['item'] | undefined {
     const wsName = vscode.workspace.getWorkspaceFolder(document.uri)?.name;
     if (!wsName) {
       throw new Error(`invalid document, failed to obtain workspaceFolder info: ${document.uri}`);
@@ -25,7 +27,7 @@ export class JestTestController implements vscode.TestController<TestItemDataTyp
     if (!wsRoot) {
       throw new Error(`no WorkspaceRoot has been created for document ${document.uri}`);
     }
-    return wsRoot.addTestFile(document.fileName).item;
+    return wsRoot.addTestFile(document.fileName)?.item;
   }
 
   /**

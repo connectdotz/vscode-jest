@@ -413,11 +413,11 @@ const { match } = ContextMatch();
 export const matchTestAssertions = (
   fileName: string,
   sourceRoot: ParsedNode,
-  assertions: TestAssertionStatus[],
+  assertions: TestAssertionStatus[] | ContainerNode<TestAssertionStatus>,
   verbose = false
 ): TestResult[] => {
   const tContainer = buildSourceContainer(sourceRoot);
-  const aContainer = buildAssertionContainer(assertions);
+  const aContainer = Array.isArray(assertions) ? buildAssertionContainer(assertions) : assertions;
 
   const messaging = createMessaging(fileName, verbose);
   return match(tContainer, aContainer, messaging);

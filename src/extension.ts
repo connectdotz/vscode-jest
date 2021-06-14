@@ -142,7 +142,8 @@ const addSubscriptions = (context: vscode.ExtensionContext): void => {
     vscode.workspace.onWillSaveTextDocument(
       extensionManager.onWillSaveTextDocument,
       extensionManager
-    )
+    ),
+    vscode.test.registerTestController(extensionManager.jestTestController)
   );
 };
 

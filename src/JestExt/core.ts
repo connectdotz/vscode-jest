@@ -112,9 +112,15 @@ export class JestExt {
     this.processSession = this.createProcessSession();
     this.sessionAwareComponents = [this.testResultProvider];
 
-
     // vscode test provider support
-    this.workspaceItemRoot = new WorkspaceRoot({...this.extContext, session: this.processSession, testResolveProvider: this.testResultProvider}, workspaceFolder);
+    this.workspaceItemRoot = new WorkspaceRoot(
+      {
+        ...this.extContext,
+        session: this.processSession,
+        testResolveProvider: this.testResultProvider,
+      },
+      workspaceFolder
+    );
 
     this.setupStatusBar();
   }
@@ -145,7 +151,6 @@ export class JestExt {
   }
   private setTestFiles(list: string[] | undefined): void {
     this.testResultProvider.updateTestFileList(list);
-    this.workspaceItemRoot.updateTestList(...list);
     this.updateStatusBar({ stats: this.toSBStats(this.testResultProvider.getTestSuiteStats()) });
   }
   /**
@@ -616,7 +621,6 @@ export class JestExt {
     this._updateCoverageMap(normalizedData.coverageMap);
 
     const statusList = this.testResultProvider.updateTestResults(normalizedData);
-    this.workspaceItemRoot.updateWithTestResults(statusList);
 
     updateDiagnostics(statusList, this.failDiagnostics);
 

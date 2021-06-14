@@ -6,6 +6,7 @@ import { PluginWindowSettings } from './Settings';
 import { statusBar } from './StatusBar';
 import { CoverageCodeLensProvider } from './Coverage';
 import { extensionName } from './appGlobals';
+import { JestTestController } from './test-provider/test-controller';
 
 export type GetJestExtByURI = (uri: vscode.Uri) => JestExt | undefined;
 
@@ -55,6 +56,7 @@ export class ExtensionManager {
   debugCodeLensProvider: DebugCodeLensProvider;
   debugConfigurationProvider: DebugConfigurationProvider;
   coverageCodeLensProvider: CoverageCodeLensProvider;
+  jestTestController: JestTestController;
 
   private extByWorkspace: Map<string, JestExt> = new Map();
   private context: vscode.ExtensionContext;
@@ -68,6 +70,7 @@ export class ExtensionManager {
     this.debugConfigurationProvider = new DebugConfigurationProvider();
     this.debugCodeLensProvider = new DebugCodeLensProvider((uri) => this.getByDocUri(uri));
     this.coverageCodeLensProvider = new CoverageCodeLensProvider((uri) => this.getByDocUri(uri));
+    this.jestTestController = new JestTestController((name: string) => this.getByName(name));
     this.applySettings(getExtensionWindowSettings());
     this.registerAll();
   }

@@ -4,6 +4,7 @@ import {
   TestFileAssertionStatus,
   IParseResults,
   parse,
+  TestAssertionStatus,
 } from 'jest-editor-support';
 import { TestReconciliationState, TestReconciliationStateType } from './TestReconciliationState';
 import { TestResult, TestResultStatusInfo } from './TestResult';
@@ -12,9 +13,11 @@ import { JestExtSessionAware } from '../JestExt';
 import { TestStats } from '../types';
 import { emptyTestStats } from '../helpers';
 import { createTestResultEvents, TestResultEvents } from './TestResultEvent';
+import { ContainerNode } from './match-node';
 
 interface TestSuiteResult {
   status: TestReconciliationStateType;
+  assertionContainer?: ContainerNode<TestAssertionStatus>;
   results?: TestResult[];
   sorted?: SortedTestResults;
 }
@@ -96,6 +99,12 @@ export class TestResultProvider implements JestExtSessionAware {
 
     this.events.testListUpdated.fire(testFiles);
   }
+  getTestList(): string[] {
+    if (this.testFiles && this.testFiles.length > 0) {
+      return this.testFiles;
+    }
+    return Object.keys(this.testSuites);
+  }
 
   isTestFile(fileName: string): 'yes' | 'no' | 'unknown' {
     if (this.testFiles?.includes(fileName) || this.testSuites[fileName] != null) {
@@ -107,20 +116,31 @@ export class TestResultProvider implements JestExtSessionAware {
     return 'no';
   }
 
+  public getTestSuiteResult(filePath: string): TestSuiteResult {
+    const cache = this.testSuites[filePath] || {};
+    if (!cache.assertionContainer) {
+      const assertions = this.reconciler.assertionsForTestFile(filePath);
+      if (assertions && assertions.length > 0) {
+        cache.status = this.reconciler.stateForTestFile(filePath);
+        cache.assertionContainer = match.buildAssertionContainer(assertions);
+        this.testSuites[filePath] = cache;
+      }
+    }
+    return cache;
+  }
   private matchResults(filePath: string, { root, itBlocks }: IParseResults): TestSuiteResult {
     let error: string | undefined;
     try {
-      const assertions = this.reconciler.assertionsForTestFile(filePath);
-      if (assertions && assertions.length > 0) {
-        const status = this.reconciler.stateForTestFile(filePath);
-        const suiteResult = {
-          status,
-          results: this.groupByRange(
-            match.matchTestAssertions(filePath, root, assertions, this.verbose)
-          ),
-        };
-        this.events.testResultMatched.fire({ fileName: filePath, results: suiteResult.results });
-        return suiteResult;
+      const cache = this.getTestSuiteResult(filePath) ?? {};
+      if (cache.assertionContainer) {
+        cache.results = this.groupByRange(
+          match.matchTestAssertions(filePath, root, cache.assertionContainer, this.verbose)
+        );
+        this.events.testSuiteChanged.fire({
+          files: [filePath],
+          reason: 'result-matched',
+        });
+        return cache;
       }
       error = 'no assertion generated for file';
     } catch (e) {
@@ -219,9 +239,15 @@ export class TestResultProvider implements JestExtSessionAware {
   updateTestResults(data: JestTotalResults): TestFileAssertionStatus[] {
     const results = this.reconciler.updateFileWithJestStatus(data);
     results?.forEach((r) => {
-      this.testSuites[r.file] = { status: r.status };
+      this.testSuites[r.file] = {
+        status: r.status,
+        assertionContainer: r.assertions ? match.buildAssertionContainer(r.assertions) : undefined,
+      };
     });
-    this.events.testAssertionUpdated.fire(results);
+    this.events.testSuiteChanged.fire({
+      files: results.map((r) => r.file),
+      reason: 'assertions-updated',
+    });
     return results;
   }
 
