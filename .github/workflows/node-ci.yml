@@ -88,9 +88,7 @@ jobs:
         run: yarn --immutable
         
       - name: test with coverage
-        run: |
-          yarn test --coverage
-          cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js
+        run: yarn test --coverage
                 
       - name: Coveralls 
         uses: coverallsapp/github-action@master
