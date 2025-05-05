@@ -372,6 +372,39 @@
           "type": "boolean",
           "default": null,
           "scope": "resource"
+        },
+        "jest.srcTestFileMappings": {
+          "type": "array",
+          "description": "Rules for resolving source → test file mappings. Each entry defines a srcRoot and its associated testRoot and suffix.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "srcRoot": {
+                "type": "string",
+                "description": "Source directory relative to the project root (workspace folder + jest.rootPath), e.g. 'src' or 'lib'."
+              },
+              "testRoot": {
+                "type": "string",
+                "description": "Root test directory (e.g. '__tests__' or 'tests'). Interpreted relative either to the project root or to the source-file's directory (see testRootRelativeToSrcFile)."
+              },
+              "testRootAtSrc": {
+                "type": "boolean",
+                "description": "If true, testRoot is resolved relative to each source-file’s directory; if false (default) it’s resolved from the project root."
+              },
+              "testSuffix": {
+                "type": "string",
+                "description": "Suffix identifying test files, e.g. '.test' or '.spec'."
+              }
+            },
+            "required": [
+              "srcRoot",
+              "testRoot",
+              "testSuffix"
+            ],
+            "additionalProperties": false
+          },
+          "default": null,
+          "scope": "resource"
         }
       }
     },
@@ -430,7 +463,15 @@
       },
       {
         "command": "io.orta.jest.editor.run-all-tests",
-        "title": "Jest: Run Related Tests"
+        "title": "Jest: Run Related Test"
+      },
+      {
+        "command": "io.orta.jest.editor.goto-test",
+        "title": "Jest: Go To Test File"
+      },
+      {
+        "command": "io.orta.jest.editor.goto-src",
+        "title": "Jest: Go To Source File"
       },
       {
         "command": "io.orta.jest.setup-extension",
@@ -488,6 +529,14 @@
           "when": "jest.never"
         },
         {
+          "command": "io.orta.jest.editor.goto-test",
+          "when": "jest.never"
+        },
+        {
+          "command": "io.orta.jest.editor.goto-src",
+          "when": "jest.never"
+        },
+        {
           "command": "io.orta.jest.test-item.run-mode.change",
           "when": "jest.never"
         },
@@ -508,6 +557,16 @@
         {
           "when": "editorLangId =~ /(javascript|javascriptreact|typescript|typescriptreact|vue)/ ",
           "command": "io.orta.jest.editor.run-all-tests",
+          "group": "Jest"
+        },
+        {
+          "when": "jest.activeEditor.mappingKind === 'source'",
+          "command": "io.orta.jest.editor.goto-test",
+          "group": "Jest"
+        },
+        {
+          "when": "jest.activeEditor.mappingKind === 'test'",
+          "command": "io.orta.jest.editor.goto-src",
           "group": "Jest"
         }
       ],

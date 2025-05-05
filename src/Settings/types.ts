@@ -2,6 +2,7 @@ import { CoverageColors } from '../Coverage/CoverageOverlay';
 import { JESParserPluginOptions, ProjectWorkspace } from 'jest-editor-support';
 import { RunShell } from '../JestExt/run-shell';
 import { RunMode } from '../JestExt/run-mode';
+import { SrcTestFileMapping } from '../JestExt';
 
 export type JestTestProcessType =
   | 'all-tests'
@@ -78,6 +79,7 @@ export interface PluginResourceSettings {
   parserPluginOptions?: JESParserPluginOptions;
   useDashedArgs?: boolean;
   useJest30?: boolean;
+  srcTestFileMappings?: SrcTestFileMapping[];
 }
 
 export interface DeprecatedPluginResourceSettings {

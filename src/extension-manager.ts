@@ -392,6 +392,16 @@ export class ExtensionManager {
         callback: (extension, editor) => extension.runAllTests(editor),
       }),
       this.registerCommand({
+        type: 'active-text-editor',
+        name: 'goto-test',
+        callback: (extension, editor) => extension.gotoTestFile(editor),
+      }),
+      this.registerCommand({
+        type: 'active-text-editor',
+        name: 'goto-src',
+        callback: (extension, editor) => extension.gotoSourceFile(editor),
+      }),
+      this.registerCommand({
         type: 'select-workspace',
         name: 'save-run-mode',
         callback: (extension) => extension.saveRunMode(),

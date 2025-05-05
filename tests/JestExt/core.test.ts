@@ -61,6 +61,7 @@ import { ItemCommand } from '../../src/test-provider/types';
 import { TestResultProvider } from '../../src/TestResults';
 import { executableTerminalLinkProvider } from '../../src/terminal-link-provider';
 import { updateSetting } from '../../src/Settings';
+import { FileMapper } from '../../src/JestExt/FileMapper';
 
 /* eslint jest/expect-expect: ["error", { "assertFunctionNames": ["expect", "expectItTakesNoAction"] }] */
 const mockHelpers = helper as jest.Mocked<any>;
@@ -81,7 +82,7 @@ const EmptySortedResult = {
 };
 const mockGetExtensionResourceSettings = jest.spyOn(extHelper, 'getExtensionResourceSettings');
 
-describe('JestExt', () => {
+describe('JestExt core', () => {
   const getConfiguration = vscode.workspace.getConfiguration as jest.Mock<any>;
   const context: any = { asAbsolutePath: (text) => text } as vscode.ExtensionContext;
   const workspaceFolder = { name: 'test-folder', uri: { fsPath: '/test-folder' } } as any;
@@ -1607,26 +1608,134 @@ describe('JestExt', () => {
       });
     });
   });
-  it.each`
-    withError
-    ${false}
-    ${true}
-  `('withError=$withError: can save current runMode to settings', async ({ withError }) => {
-    expect.hasAssertions();
+  describe('saveRunMode', () => {
+    it.each`
+      withError
+      ${false}
+      ${true}
+    `('withError=$withError: can save current runMode to settings', async ({ withError }) => {
+      expect.hasAssertions();
 
-    const runMode = new RunMode('watch');
-    const jestExt = newJestExt({ settings: { runMode } });
+      const runMode = new RunMode('watch');
+      const jestExt = newJestExt({ settings: { runMode } });
 
-    if (withError) {
-      (updateSetting as jest.Mocked<any>).mockImplementation(() => {
-        throw new Error('forced error');
+      if (withError) {
+        (updateSetting as jest.Mocked<any>).mockImplementation(() => {
+          throw new Error('forced error');
+        });
+      }
+      await jestExt.saveRunMode();
+      expect(updateSetting).toHaveBeenCalledWith(
+        jestExt.workspaceFolder,
+        'runMode',
+        runMode.config
+      );
+
+      if (withError) {
+        expect(mockOutputTerminal.write).toHaveBeenCalledWith(expect.anything(), 'error');
+      }
+    });
+  });
+  describe('SrcTestFileMappings Support', () => {
+    const mappingSettings = {
+      srcTestFileMappings: [
+        {
+          srcRoot: 'src',
+          testRoot: 'tests',
+          testSuffix: '.test',
+        },
+      ],
+    };
+    it('create a TestMapper if the setting is defined', () => {
+      newJestExt({});
+      expect(FileMapper).not.toHaveBeenCalled();
+
+      newJestExt({ settings: mappingSettings });
+      expect(FileMapper).toHaveBeenCalledWith(
+        workspaceFolder,
+        mappingSettings.srcTestFileMappings,
+        undefined
+      );
+    });
+    describe('can set corresponding context key for active editor', () => {
+      const getTestFilesSpy = jest.spyOn(FileMapper.prototype, 'getTestFiles');
+      const getSourceFileSpy = jest.spyOn(FileMapper.prototype, 'getSourceFile');
+      beforeEach(() => {
+        getTestFilesSpy.mockClear();
+        getSourceFileSpy.mockClear();
       });
-    }
-    await jestExt.saveRunMode();
-    expect(updateSetting).toHaveBeenCalledWith(jestExt.workspaceFolder, 'runMode', runMode.config);
+      it.each`
+        mappingKind
+        ${'source'}
+        ${'test'}
+        ${'other'}
+      `('mappingKind: $mappingKind', async ({ mappingKind }) => {
+        // mocking the FileMapper
 
-    if (withError) {
-      expect(mockOutputTerminal.write).toHaveBeenCalledWith(expect.anything(), 'error');
-    }
+        if (mappingKind === 'source') {
+          getTestFilesSpy.mockReturnValue(['test-file']);
+        }
+        if (mappingKind === 'test') {
+          getSourceFileSpy.mockReturnValue('source-file');
+        }
+        const jestExt = newJestExt({ settings: mappingSettings });
+        const editor = mockEditor('whatever');
+        jestExt.onDidChangeActiveTextEditor(editor);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+          'setContext',
+          'jest.activeEditor.mappingKind',
+          mappingKind
+        );
+      });
+      it('if no mapping, all editors are "other"', () => {
+        const jestExt = newJestExt({ settings: {} });
+        const editor = mockEditor('whatever');
+        jestExt.onDidChangeActiveTextEditor(editor);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+          'setContext',
+          'jest.activeEditor.mappingKind',
+          'other'
+        );
+      });
+      it('non code files are "other"', () => {
+        const jestExt = newJestExt({ settings: mappingSettings });
+        const editor = mockEditor('whatever', 'json');
+        jestExt.onDidChangeActiveTextEditor(editor);
+        expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+          'setContext',
+          'jest.activeEditor.mappingKind',
+          'other'
+        );
+      });
+    });
+    it('can open test file from source file', async () => {
+      // when no mapping settings
+      let jestExt = newJestExt({ settings: {} });
+      const editor = mockEditor('whatever', 'javascript');
+      await jestExt.gotoTestFile(editor);
+      expect(FileMapper.prototype.openTestFileFor).not.toHaveBeenCalled();
+
+      // with mapping settings
+      jestExt = newJestExt({ settings: mappingSettings });
+      await jestExt.gotoTestFile();
+      expect(FileMapper.prototype.openTestFileFor).not.toHaveBeenCalled();
+
+      await jestExt.gotoTestFile(editor);
+      expect(FileMapper.prototype.openTestFileFor).toHaveBeenCalledWith(editor.document.fileName);
+    });
+    it('can open source file from fest file', async () => {
+      // when no mapping settings
+      let jestExt = newJestExt({ settings: {} });
+      const editor = mockEditor('whatever', 'javascript');
+      await jestExt.gotoTestFile(editor);
+      expect(FileMapper.prototype.openSourceFileFor).not.toHaveBeenCalled();
+
+      jestExt = newJestExt({ settings: mappingSettings });
+      await jestExt.gotoSourceFile();
+      expect(FileMapper.prototype.openSourceFileFor).not.toHaveBeenCalled();
+
+      await jestExt.gotoSourceFile(editor);
+      expect(FileMapper.prototype.openSourceFileFor).toHaveBeenCalledWith(editor.document.fileName);
+    });
   });
 });

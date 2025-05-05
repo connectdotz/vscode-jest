@@ -39,6 +39,7 @@ import { ansiEsc, JestOutputTerminal } from './output-terminal';
 import { QuickFixActionType } from '../quick-fix';
 import { executableTerminalLinkProvider } from '../terminal-link-provider';
 import { outputManager } from '../output-manager';
+import { FileMapper } from './FileMapper';
 
 interface JestCommandSettings {
   rootPath: string;
@@ -62,7 +63,7 @@ export class JestExt {
 
   private status: ReturnType<StatusBar['bind']>;
   private logging: Logging;
-  private extContext: JestExtContext;
+  private _extContext: JestExtContext;
   private dirtyFiles: Set<string> = new Set();
 
   private testProvider?: JestTestProvider;
@@ -71,6 +72,7 @@ export class JestExt {
   private workspaceManager: WorkspaceManager;
   private output: JestOutputTerminal;
   private debugConfig?: vscode.DebugConfiguration;
+  private fileMapper?: FileMapper;
 
   constructor(
     vscodeContext: vscode.ExtensionContext,
@@ -85,6 +87,9 @@ export class JestExt {
     this.updateOutputSetting(pluginSettings);
 
     this.extContext = createJestExtContext(workspaceFolder, pluginSettings, this.output);
+    // this is redundant but just to make the ts compiler happy
+    this._extContext = this.extContext;
+
     this.logging = this.extContext.loggingFactory.create('JestExt');
     this.workspaceManager = new WorkspaceManager();
 
@@ -132,6 +137,16 @@ export class JestExt {
   }
   public get workspaceFolder(): vscode.WorkspaceFolder {
     return this.extContext.workspace;
+  }
+  private set extContext(value: JestExtContext) {
+    this._extContext = value;
+    this.debugConfig = undefined;
+    this.fileMapper = value.settings.srcTestFileMappings
+      ? new FileMapper(value.workspace, value.settings.srcTestFileMappings, value.settings.rootPath)
+      : undefined;
+  }
+  private get extContext(): JestExtContext {
+    return this._extContext;
   }
 
   /**
@@ -360,9 +375,17 @@ export class JestExt {
   }
 
   private updateTestFileEditor(editor: vscode.TextEditor): void {
-    if (!this.isTestFileEditor(editor)) {
-      return;
-    }
+    if (!this.isSupportedDocument(editor.document)) return;
+
+    // check if there is a corresponding source file for the test file
+    const srcFile = this.fileMapper?.getSourceFile(editor.document.fileName);
+    vscode.commands.executeCommand(
+      'setContext',
+      'jest.activeEditor.isTestFile',
+      srcFile !== undefined
+    );
+
+    if (!this.testResultProvider.isTestFile(editor.document.fileName)) return;
 
     const filePath = editor.document.fileName;
     let sortedResults: SortedTestResults | undefined;
@@ -379,16 +402,43 @@ export class JestExt {
       };
     }
 
-    if (!sortedResults) {
-      return;
+    if (sortedResults) {
+      updateCurrentDiagnostics(sortedResults.fail, this.failDiagnostics, editor);
     }
+  }
 
-    updateCurrentDiagnostics(sortedResults.fail, this.failDiagnostics, editor);
+  /**
+   * determine if the given editor contains test or source file based on SrcTestMappings
+   * @returns “test” | “source” | “other”
+   **/
+  private mappingKind(editor: vscode.TextEditor): 'test' | 'source' | 'other' {
+    if (!this.fileMapper || !this.isSupportedDocument(editor.document)) return 'other';
+
+    const testFiles = this.fileMapper.getTestFiles(editor.document.fileName);
+    if (testFiles && testFiles.length > 0) return 'source';
+
+    const srcFile = this.fileMapper.getSourceFile(editor.document.fileName);
+    if (srcFile) return 'test';
+
+    return 'other';
+  }
+
+  /**
+   * update context variable for editor's context menu.
+   * This determines if to show conditional menu items for the goto feature
+   **/
+  private updateMappingContext(editor: vscode.TextEditor): void {
+    vscode.commands.executeCommand(
+      'setContext',
+      'jest.activeEditor.mappingKind',
+      this.mappingKind(editor)
+    );
   }
 
   private triggerUpdateActiveEditor(editor: vscode.TextEditor): void {
     this.coverageOverlay.update(editor);
     this.updateTestFileEditor(editor);
+    this.updateMappingContext(editor);
   }
 
   private updateOutputSetting(settings: PluginResourceSettings): void {
@@ -424,7 +474,6 @@ export class JestExt {
     );
 
     this.extContext = createJestExtContext(this.extContext.workspace, updatedSettings, this.output);
-    this.debugConfig = undefined;
 
     await this.startSession(true);
   }
@@ -455,14 +504,6 @@ export class JestExt {
   private isSupportedDocument(document?: vscode.TextDocument | undefined): boolean {
     // if no testFiles list, then error on including more possible files as long as they are in the supported languages - this is backward compatible with v3 logic
     return (document && SupportedLanguageIds.includes(document.languageId)) ?? false;
-  }
-
-  private isTestFileEditor(editor: vscode.TextEditor): boolean {
-    if (!this.isSupportedDocument(editor.document)) {
-      return false;
-    }
-
-    return this.testResultProvider.isTestFile(editor.document.fileName);
   }
 
   /**
@@ -649,6 +690,18 @@ export class JestExt {
       }
     }
     this.logging('error', 'failed to schedule the run for', editor?.document.fileName);
+  }
+  public async gotoTestFile(editor?: vscode.TextEditor): Promise<void> {
+    if (!editor || !this.fileMapper) {
+      return;
+    }
+    await this.fileMapper.openTestFileFor(editor.document.fileName);
+  }
+  public async gotoSourceFile(editor?: vscode.TextEditor): Promise<void> {
+    if (!editor || !this.fileMapper) {
+      return;
+    }
+    await this.fileMapper.openSourceFileFor(editor.document.fileName);
   }
 
   //**  window events handling */

@@ -63,3 +63,59 @@ export type JestExtProcessContext = Readonly<JestExtProcessContextRaw>;
 export type DebugTestIdentifier = string | TestIdentifier;
 
 export type DebugFunction = (debugInfo: DebugInfo) => Promise<void>;
+
+/**
+ * Defines a rule for mapping source files to their corresponding test files.
+ *
+ * Each mapping specifies where the source code is located, where to find its tests,
+ * and how to recognize a test file based on its suffix.
+ *
+ * Example mappings:
+ *
+ * - Centralized tests:
+ *   {
+ *     srcRoot: "src",
+ *     testRoot: "tests",
+ *     testSuffix: ".test"
+ *   }
+ *
+ * - Sibling tests:
+ *   {
+ *     srcRoot: "src",
+ *     testRoot: "__tests__",
+ *     testSuffix: ".spec",
+ *     testRootRelativeToSrcFile: true
+ *   }
+ */
+export interface SrcTestFileMapping {
+  /**
+   * The source root directory relative to the workspace folder.
+   * This typically contains the application's source code.
+   *
+   * Example: "src" or "packages/client/src".
+   */
+  srcRoot: string;
+
+  /**
+   * The root directory where corresponding test files are located.
+   * Either relative to the workspace folder or the source file, depending on `testRootRelativeToSrcFile`.
+   *
+   * Example: "__tests__" or "tests".
+   */
+  testRoot: string;
+
+  /**
+   * The suffix string used to identify a test file, excluding the file extension.
+   *
+   * Example: ".test" for files like "app.test.ts".
+   */
+  testSuffix: string;
+
+  /**
+   * Optional flag indicating whether `testRoot` should be resolved relative to the source file location.
+   *
+   * - `true`: `testRoot` is relative to each source file's directory (e.g., sibling "__tests__" folders).
+   * - `false` or omitted: `testRoot` is relative to the workspace folder + `srcRoot`.
+   */
+  testRootAtSrc?: boolean;
+}

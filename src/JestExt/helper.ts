@@ -16,7 +16,7 @@ import {
   DeprecatedPluginResourceSettings,
 } from '../Settings';
 import { workspaceLogging } from '../logging';
-import { JestExtContext, RunnerWorkspaceOptions } from './types';
+import { JestExtContext, RunnerWorkspaceOptions, SrcTestFileMapping } from './types';
 import { CoverageColors } from '../Coverage';
 import { userInfo } from 'os';
 import { JestOutputTerminal } from './output-terminal';
@@ -111,6 +111,8 @@ export const getExtensionResourceSettings = (
     enable: getSetting<boolean>('enable'),
     useDashedArgs: getSetting<boolean>('useDashedArgs') ?? false,
     useJest30: getSetting<boolean>('useJest30'),
+    srcTestFileMappings:
+      getSetting<SrcTestFileMapping[] | null>('srcTestFileMappings') ?? undefined,
   };
 };
 
