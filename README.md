@@ -61,6 +61,7 @@ Content
       - [coverageColors](#coveragecolors)
       - [outputConfig](#outputconfig)
       - [runMode](#runmode)
+      - [srcTestFileMappings](#srctestfilemappings)
       - [autoRun](#autorun)
       - [testExplorer](#testexplorer)
       - [shell](#shell)
@@ -287,6 +288,7 @@ useDashedArgs| Determine if to use dashed arguments for jest processes |undefine
 |**UX**|
 |[outputConfig](#outputconfig) 💼|Controls test output experience across the whole workspace.|undefined|`"jest.outputConfig": "neutral"` or `"jest.outputConfig": {"revealOn": "run", "revealWithFocus": "terminal", "clearOnRun": 'terminal"`| >= v6.1.0
 |[runMode](#runmode)|Controls most test UX, including when tests should be run, output management, etc|undefined|`"jest.runMode": "watch"` or `"jest.runMode": "on-demand"` or `"jest.runMode": {"type": "on-demand", "deferred": true}`| >= v6.1.0
+|[srcTestFileMappings](#srctestfilemappings)|source ↔ test file mapping rules used by commands such as “Go to Test File” and "Go to Source File"|null|`"jest.srcTestFileMappings": [{"srcRoot": "src", "testRoot": "tests", "testSuffix": ".test", }]`| >= v6.5.0
 |:x: autoClearTerminal|Clear the terminal output at the start of any new test run.|false|`"jest.autoClearTerminal": true`| v6.0.0 (replaced by outputConfig)
 |:x: [testExplorer](#testexplorer) |Configure jest test explorer|null|`{"showInlineError": "true"}`| < 6.1.0 (replaced by runMode)
 |:x: [autoRun](#autorun)|Controls when and what tests should be run|undefined|`"jest.autoRun": "off"` or `"jest.autoRun": "watch"` or `"jest.autoRun": {"watch": false, "onSave":"test-only"}`| < v6.1.0 (replaced by runMode)
@@ -583,6 +585,68 @@ While the concepts of performance and automation are generally clear, "completen
 > **Migration Guide**
 > 
 > Starting from v6.1.0, if no runMode is defined in settings.json, the extension will automatically generate one using legacy settings (`autoRun`, `showCoverageOnLoad`). To migrate, simply use the `"Jest: Save Current RunMode"` command from the command palette to update the setting, then remove the deprecated settings.
+
+---
+
+#### srcTestFileMappings
+
+`jest.srcTestFileMappings` lets you declare each source directory and its primary test directory (with filename suffix), so vscode‑jest can instantly jump between a file and its corresponding test via the editor's “Go To” context menu when defined.
+
+**Type Definitions**
+```ts
+interface SrcTestFileMapping {
+  srcRoot: string;      // source root, relative to workspaceFolder
+  testRoot: string;     // test root – relative to workspaceFolder or src file (see below)
+  testSuffix: string;   // suffix *before* the extension, e.g. ".test"
+  /** set true when testRoot is next to each source file (sibling layout) */
+  testRootAtSrc?: boolean; // if true, testRoot is relative to src file instead of workspaceFolder
+}
+```
+
+**Example**
+- Centralised tests under "tests" directory:
+  ```json
+  jest.srcTestFileMappings": [
+    {
+      "srcRoot": "src",
+      "testRoot": "tests",
+      "testSuffix": ".test"
+    }
+  ]
+  ```
+  - Sibling layout, where each test file is next to its source file:
+  ```json
+  "jest.srcTestFileMappings": [
+    {
+      "srcRoot": "src",
+      "testRoot": "tests",
+      "testSuffix": ".test",
+      "testRootAtSrc": true
+    }
+  ]
+  ```
+  - Multiple source roots:
+  ```json
+  "jest.srcTestFileMappings": [
+    {
+      "srcRoot": "src",
+      "testRoot": "__tests__",
+      "testSuffix": ".test",
+      "testRootAtSrc": true
+    },
+    {
+      "srcRoot": "e2e",
+      "testRoot": "tests",
+      "testSuffix": ".e2e.test"
+    }
+  ]
+  ```
+
+> [!NOTE]
+> 
+> **Why another setting?**
+>
+> Jest’s `testRegex` (or `testMatch`) tells jest *which* files are tests but doesn’t define a one‑to‑one mapping between a source file and its primary test. With `jest.srcTestFileMappings`, the extension can reliably locate the “main” test or source file and power instant “Go To” switching.
 
 ---
 
